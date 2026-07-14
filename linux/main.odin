@@ -3,10 +3,13 @@ package main
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "vendor:sdl2"
+import "core:time"
+import "vendor:x11/xlib"
 
 STATE_PATH :: "/tmp/bitpix-state.json"
 BUDDY_PACK :: "/apps/bitpix-buddy/buddy-packs/default"
+
+w, h := 320, 200
 
 Pixel :: struct {
     r, g, b, a: u8,
@@ -17,6 +20,7 @@ Draw_Pixel :: proc(buf: []Pixel, x, y, w, h: int, p: Pixel) {
     i := y * w + x
     if i >= 0 && i < len(buf) do buf[i] = p
 }
+
 Fill_Rect :: proc(buf: []Pixel, x, y, rw, rh, bw, bh: int, p: Pixel) {
     for j := y; j < y + rh && j < bh; j += 1 {
         for i := x; i < x + rw && i < bw; i += 1 {
@@ -24,6 +28,7 @@ Fill_Rect :: proc(buf: []Pixel, x, y, rw, rh, bw, bh: int, p: Pixel) {
         }
     }
 }
+
 Checkerboard :: proc(buf: []Pixel, w, h: int) {
     for j := 0; j < h; j += 1 {
         for i := 0; i < w; i += 1 {
@@ -33,7 +38,8 @@ Checkerboard :: proc(buf: []Pixel, w, h: int) {
         }
     }
 }
-Apply_State :: proc(buf: []Pixel, w, h: int, action: string) {
+
+Apply_State :: proc(buf: []Pixel, action: string) {
     switch action {
     case "idle":
         Checkerboard(buf, w, h)
@@ -51,9 +57,10 @@ Apply_State :: proc(buf: []Pixel, w, h: int, action: string) {
         Checkerboard(buf, w, h)
     }
 }
+
 Read_State :: proc() -> string {
     data, err := os.read_entire_file_from_path(STATE_PATH, context.allocator)
-    if err != nil || len(data) == 0 { return "idle" }
+    if err != nil || len(data) == 0 do return "idle"
     text := string(data)
     for line in strings.split(text, "\n") {
         if strings.has_prefix(line, "action=") {
@@ -63,81 +70,51 @@ Read_State :: proc() -> string {
     return "idle"
 }
 
-sdl_err :: proc(label: string) {
-    e := sdl2.GetErrorString()
-    if e != "" {
-        fmt.println(label, e)
-    }
-}
-
 main :: proc() {
-    dispb := make([]u8, 256)
-    disp := os.get_env_buf(dispb, "DISPLAY")
-    fmt.println("DISPLAY: \"", disp, "\"")
+    action := Read_State()
+    fmt.println("BitPix action:", action)
 
-    if sdl2.Init(sdl2.INIT_VIDEO) == 0 {
-        fmt.println("SDL_Init VIDEO failed: ", sdl2.GetErrorString())
+    dpy := xlib.OpenDisplay(nil)
+    if dpy == nil {
+        fmt.println("OpenDisplay failed")
         return
     }
-    defer sdl2.Quit()
-    sdl_err("SDL err after init: ")
+    defer xlib.CloseDisplay(dpy)
 
-    w, h := 320, 200
-    win := sdl2.CreateWindow(
-        "BitPix Buddy",
-        sdl2.WINDOWPOS_CENTERED,
-        sdl2.WINDOWPOS_CENTERED,
-        i32(w), i32(h),
-        {.ALWAYS_ON_TOP, .BORDERLESS, .SHOWN},
-    )
-    sdl_err("SDL err after CreateWindow: ")
-    if win == nil {
-        fmt.println("CreateWindow failed")
+    screen := xlib.DefaultScreen(dpy)
+    root := xlib.RootWindow(dpy, screen)
+    black := xlib.BlackPixel(dpy, screen)
+    white := xlib.WhitePixel(dpy, screen)
+    gc := xlib.DefaultGC(dpy, screen)
+
+    win := xlib.CreateSimpleWindow(dpy, root, 100, 100, 320, 200, 2, black, white)
+    if win == 0 {
+        fmt.println("CreateSimpleWindow failed")
         return
     }
-    defer sdl2.DestroyWindow(win)
+    defer xlib.DestroyWindow(dpy, win)
 
-    renderer := sdl2.CreateRenderer(win, -1, {.ACCELERATED})
-    sdl_err("SDL err after CreateRenderer: ")
-    if renderer == nil {
-        fmt.println("CreateRenderer failed")
-        return
-    }
-    defer sdl2.DestroyRenderer(renderer)
+    xlib.StoreName(dpy, win, "BitPix Buddy")
+    xlib.SelectInput(dpy, win, xlib.EventMask{.ButtonPress, .KeyPress, .Exposure, .StructureNotify})
+    xlib.MapRaised(dpy, win)
 
-    texture := sdl2.CreateTexture(renderer, sdl2.PixelFormatEnum.RGBA8888, sdl2.TextureAccess.STATIC, i32(w), i32(h))
-    sdl_err("SDL err after CreateTexture: ")
-    if texture == nil {
-        fmt.println("CreateTexture failed")
-        return
-    }
-    defer sdl2.DestroyTexture(texture)
+    buf := make([]Pixel, w * h)
+    Apply_State(buf, action)
 
-    buf := make([]Pixel, w*h)
-    out := make([]u32, w*h)
-    Apply_State(buf, w, h, Read_State())
-    for i := 0; i < len(buf); i += 1 {
-        out[i] = u32(buf[i].a) << 24 | u32(buf[i].r) << 16 | u32(buf[i].g) << 8 | u32(buf[i].b)
-    }
-    sdl2.UpdateTexture(texture, nil, &out[0], i32(w*4))
-    sdl_err("SDL err after UpdateTexture: ")
-
-    fmt.println("entering event loop")
-    running := true
-    for running {
-        ev := sdl2.Event{}
-        for sdl2.PollEvent(&ev) {
-            #partial switch ev.type {
-            case .QUIT:       running = false
-            case .KEYDOWN:    running = false
-            case .WINDOWEVENT:
-                wev := ev.window
-                if wev.event == sdl2.WindowEventID.CLOSE { running = false }
-            }
+    for y := 0; y < h; y += 1 {
+        for x := 0; x < w; x += 1 {
+            p := buf[y * w + x]
+            xlib.SetForeground(dpy, gc, uint(u32(p.r) << 16 | u32(p.g) << 8 | u32(p.b)))
+            xlib.DrawPoint(dpy, win, gc, i32(x), i32(y))
         }
-        sdl2.RenderClear(renderer)
-        sdl2.RenderCopy(renderer, texture, nil, nil)
-        sdl2.RenderPresent(renderer)
-        for i := 0; i < 16_000_000; i += 1 {}
+    }
+    xlib.Flush(dpy)
+
+    fmt.println("BitPix visible")
+    for {
+        ev := xlib.XEvent{}
+        if xlib.Pending(dpy) > 0 {
+            xlib.NextEvent(dpy, &ev)
+        }
     }
 }
