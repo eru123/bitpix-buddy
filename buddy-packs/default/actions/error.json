@@ -1,0 +1,5 @@
+{
+  "name": "error",
+  "frames": [{"file": "sprites/error.png", "duration_ms": 150, "sound": "audio/fail.wav"}],
+  "loop": false
+}

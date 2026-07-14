@@ -1,0 +1,5 @@
+{
+  "name": "idle",
+  "frames": [{"file": "sprites/idle.png", "duration_ms": 120, "sound": null}],
+  "loop": true
+}

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 mkdir -p /apps/bitpix-buddy/build
-cd /apps/bitpix-buddy/linux
-/home/jericho/.local/bin/odin build . -out:/apps/bitpix-buddy/build/linux-pixel-app
-cd /apps/bitpix-buddy/windows
-/home/jericho/.local/bin/odin build . -out:/apps/bitpix-buddy/build/windows-pixel-app.exe
+ODIN=/home/jericho/.local/bin/odin
+$ODIN build /apps/bitpix-buddy/linux -collection:pixel_app=/apps/bitpix-buddy/common -out:/apps/bitpix-buddy/build/linux-pixel-app
+$ODIN build /apps/bitpix-buddy/windows -collection:pixel_app=/apps/bitpix-buddy/common -out:/apps/bitpix-buddy/build/windows-pixel-app.exe

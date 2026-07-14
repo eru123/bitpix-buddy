@@ -6,6 +6,7 @@ import "core:strings"
 import "vendor:sdl2"
 
 STATE_PATH :: "/tmp/bitpix-state.json"
+BUDDY_PACK :: "/apps/bitpix-buddy/buddy-packs/default"
 
 Pixel :: struct {
     r, g, b, a: u8,
@@ -35,6 +36,20 @@ Render_Checkerboard :: proc(buf: []Pixel, w, h: int) {
     }
 }
 
+read_state_action :: proc() -> string {
+    data, err := os.read_entire_file_from_path(STATE_PATH, context.allocator)
+    if err != nil || len(data) == 0 {
+        return "idle"
+    }
+    text := string(data)
+    for line in strings.split(text, "\n") {
+        if strings.has_prefix(line, "action=") {
+            return strings.trim_prefix(line, "action=")
+        }
+    }
+    return "idle"
+}
+
 apply_action_state :: proc(buf: []Pixel, w, h: int, action: string) {
     switch action {
     case "idle":
@@ -52,20 +67,6 @@ apply_action_state :: proc(buf: []Pixel, w, h: int, action: string) {
     case:
         Render_Checkerboard(buf, w, h)
     }
-}
-
-read_state_action :: proc() -> string {
-    data, err := os.read_entire_file_from_path(STATE_PATH, context.allocator)
-    if err != nil || len(data) == 0 {
-        return "idle"
-    }
-    text := string(data)
-    for line in strings.split(text, "\n") {
-        if strings.has_prefix(line, "action=") {
-            return strings.trim_prefix(line, "action=")
-        }
-    }
-    return "idle"
 }
 
 main :: proc() {

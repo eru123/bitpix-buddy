@@ -1,0 +1,5 @@
+{
+  "name": "deploying",
+  "frames": [{"file": "sprites/deploying.png", "duration_ms": 120, "sound": "audio/complete.wav"}],
+  "loop": true
+}

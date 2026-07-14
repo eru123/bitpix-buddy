@@ -1,0 +1,6 @@
+{
+  "name": "default",
+  "version": "1.0.0",
+  "default_action": "idle",
+  "actions": ["idle","working","error","deploying"]
+}

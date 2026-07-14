@@ -1,0 +1,5 @@
+{
+  "name": "working",
+  "frames": [{"file": "sprites/working.png", "duration_ms": 100, "sound": "audio/tick.wav"}],
+  "loop": true
+}
