@@ -4,10 +4,6 @@ Pixel :: struct {
     r, g, b, a: u8,
 }
 
-Clear_Pixel :: Pixel {
-    0, 0, 0, 0
-}
-
 Draw_Pixel :: proc(buf: []Pixel, x, y, w, h: int, p: Pixel) {
     if x < 0 || x >= w || y < 0 || y >= h do return
     idx := y * w + x

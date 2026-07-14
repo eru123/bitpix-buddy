@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -e
-mkdir -p /apps/bitpix-buddy/build
 ODIN=/home/jericho/.local/bin/odin
-$ODIN build /apps/bitpix-buddy/linux -collection:pixel_app=/apps/bitpix-buddy/common -out:/apps/bitpix-buddy/build/linux-pixel-app
-$ODIN build /apps/bitpix-buddy/windows -collection:pixel_app=/apps/bitpix-buddy/common -out:/apps/bitpix-buddy/build/windows-pixel-app.exe
+mkdir -p /apps/bitpix-buddy/build
+$ODIN build /apps/bitpix-buddy/linux -out:/apps/bitpix-buddy/build/linux-pixel-app
+echo "Linux binary built. Build Windows binary on Windows with: odin build /apps/bitpix-buddy/windows -out:build/windows-pixel-app.exe"
