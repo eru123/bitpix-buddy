@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import sys, json, time
+from pathlib import Path
+
+STATE = Path("/tmp/bitpix-state.json")
+VALID = {"idle", "working", "error", "deploying"}
+
+def write(action: str):
+    STATE.write_text(json.dumps({"action": action, "updated_at": int(time.time())}))
+
+def read():
+    if not STATE.exists():
+        return "idle"
+    try:
+        return json.loads(STATE.read_text())["action"]
+    except Exception:
+        return "idle"
+
+def usage():
+    print("Usage: bitpixd <action>")
+    print("Actions: idle, working, error, deploying")
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        print("current:", read())
+        usage()
+        return
+    action = args[0]
+    if action not in VALID:
+        print("Unknown action:", action)
+        usage()
+        return
+    write(action)
+    print("state ->", action)
+
+if __name__ == "__main__":
+    main()
