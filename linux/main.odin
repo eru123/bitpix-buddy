@@ -11,6 +11,7 @@ config := BuddyConfig{320, 200, 96, 60, 960, 600, 0x00cc00}
 
 dragging := false
 last_rx, last_ry, win_x, win_y: i32
+scale := 1
 
 apply_scale :: proc(base_w, base_h, new_scale: int) -> (int, int, int) {
     s := new_scale
@@ -52,7 +53,7 @@ main :: proc() {
 
     sw := xlib.DisplayWidth(dpy, screen)
     sh := xlib.DisplayHeight(dpy, screen)
-    bw, bh, _ := apply_scale(config.base_w, config.base_h, 1)
+    bw, bh, _ := apply_scale(config.base_w, config.base_h, scale)
     win_x = (sw - i32(bw)) / 2
     win_y = (sh - i32(bh)) / 2
     win := xlib.CreateSimpleWindow(dpy, root, win_x, win_y, u32(bw), u32(bh), 0, black, white)
@@ -64,7 +65,7 @@ main :: proc() {
     xlib.StoreName(dpy, win, "BitPix Buddy")
     attrs := xlib.XSetWindowAttributes{override_redirect = true}
     xlib.ChangeWindowAttributes(dpy, win, xlib.WindowAttributeMask{.CWOverrideRedirect}, &attrs)
-    xlib.SelectInput(dpy, win, xlib.EventMask{.ButtonPress, .ButtonRelease, .Button1Motion, .Exposure, .StructureNotify, .KeyPress})
+    xlib.SelectInput(dpy, win, xlib.EventMask{.ButtonPress, .ButtonRelease, .Button1Motion, .Exposure, .StructureNotify, .PointerMotionHint})
     xlib.MapRaised(dpy, win)
 
     xlib.SetForeground(dpy, gc, config.bg)
@@ -78,24 +79,6 @@ main :: proc() {
             xlib.NextEvent(dpy, &ev)
             if ev.type == xlib.EventType.ClientMessage || ev.type == xlib.EventType.DestroyNotify { break }
 
-            if ev.type == xlib.EventType.KeyPress {
-                xe := &ev.xkey
-                if xe.keycode == 113 {
-                    nw, nh, ns := apply_scale(config.base_w, config.base_h, 2)
-                    xlib.ResizeWindow(dpy, win, u32(nw), u32(nh))
-                    xlib.SetForeground(dpy, gc, config.bg)
-                    xlib.FillRectangle(dpy, win, gc, 0, 0, u32(nw), u32(nh))
-                    xlib.Flush(dpy)
-                }
-                if xe.keycode == 111 {
-                    nw, nh, ns := apply_scale(config.base_w, config.base_h, 1)
-                    xlib.ResizeWindow(dpy, win, u32(nw), u32(nh))
-                    xlib.SetForeground(dpy, gc, config.bg)
-                    xlib.FillRectangle(dpy, win, gc, 0, 0, u32(nw), u32(nh))
-                    xlib.Flush(dpy)
-                }
-            }
-
             if ev.type == xlib.EventType.ButtonPress {
                 xe := &ev.xbutton
                 if xe.button == xlib.MouseButton(1) {
@@ -104,6 +87,22 @@ main :: proc() {
                     last_ry = xe.y_root
                     xlib.GrabPointer(dpy, win, true, xlib.EventMask{.ButtonRelease, .Button1Motion},
                         xlib.GrabMode.GrabModeAsync, xlib.GrabMode.GrabModeAsync, 0, 0, xlib.CurrentTime)
+                }
+                if xe.button == xlib.MouseButton(4) && scale < 8 {
+                    scale += 1
+                    nw, nh, _ := apply_scale(config.base_w, config.base_h, scale)
+                    xlib.ResizeWindow(dpy, win, u32(nw), u32(nh))
+                    xlib.SetForeground(dpy, gc, config.bg)
+                    xlib.FillRectangle(dpy, win, gc, 0, 0, u32(nw), u32(nh))
+                    xlib.Flush(dpy)
+                }
+                if xe.button == xlib.MouseButton(5) && scale > 1 {
+                    scale -= 1
+                    nw, nh, _ := apply_scale(config.base_w, config.base_h, scale)
+                    xlib.ResizeWindow(dpy, win, u32(nw), u32(nh))
+                    xlib.SetForeground(dpy, gc, config.bg)
+                    xlib.FillRectangle(dpy, win, gc, 0, 0, u32(nw), u32(nh))
+                    xlib.Flush(dpy)
                 }
             }
             if ev.type == xlib.EventType.ButtonRelease {
