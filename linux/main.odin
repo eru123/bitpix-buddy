@@ -1,7 +1,11 @@
 package main
 
 import "core:fmt"
+import "core:os"
+import "core:strings"
 import "vendor:sdl2"
+
+STATE_PATH :: "/tmp/bitpix-state.json"
 
 Pixel :: struct {
     r, g, b, a: u8,
@@ -31,6 +35,39 @@ Render_Checkerboard :: proc(buf: []Pixel, w, h: int) {
     }
 }
 
+apply_action_state :: proc(buf: []Pixel, w, h: int, action: string) {
+    switch action {
+    case "idle":
+        Render_Checkerboard(buf, w, h)
+        Fill_Rect(buf, 20, 20, 60, 60, w, h, Pixel{0x00, 0xcc, 0x00, 255})
+    case "working":
+        Render_Checkerboard(buf, w, h)
+        Fill_Rect(buf, 20, 20, 120, 60, w, h, Pixel{0x00, 0x66, 0xff, 255})
+    case "error":
+        Render_Checkerboard(buf, w, h)
+        Fill_Rect(buf, 20, 20, 160, 60, w, h, Pixel{0xff, 0x00, 0x00, 255})
+    case "deploying":
+        Render_Checkerboard(buf, w, h)
+        Fill_Rect(buf, 20, 20, 200, 60, w, h, Pixel{0xff, 0xaa, 0x00, 255})
+    case:
+        Render_Checkerboard(buf, w, h)
+    }
+}
+
+read_state_action :: proc() -> string {
+    data, err := os.read_entire_file_from_path(STATE_PATH, context.allocator)
+    if err != nil || len(data) == 0 {
+        return "idle"
+    }
+    text := string(data)
+    for line in strings.split(text, "\n") {
+        if strings.has_prefix(line, "action=") {
+            return strings.trim_prefix(line, "action=")
+        }
+    }
+    return "idle"
+}
+
 main :: proc() {
     if sdl2.Init(sdl2.INIT_VIDEO) == 0 {
         fmt.println("SDL2 init failed: ", sdl2.GetErrorString())
@@ -40,7 +77,7 @@ main :: proc() {
 
     w, h := 320, 200
     win := sdl2.CreateWindow(
-        "Pixel App",
+        "BitPix Buddy",
         sdl2.WINDOWPOS_CENTERED,
         sdl2.WINDOWPOS_CENTERED,
         i32(w), i32(h),
@@ -66,15 +103,13 @@ main :: proc() {
     }
     defer sdl2.DestroyTexture(texture)
 
+    current := ""
     buf := make([]Pixel, w * h)
-    Render_Checkerboard(buf, w, h)
-    Fill_Rect(buf, 20, 20, 280, 160, w, h, Pixel{0xFF, 0xEE, 0xEE, 255})
-
     pixels32 := make([]u32, w * h)
+    apply_action_state(buf, w, h, "idle")
     for i := 0; i < len(buf); i += 1 {
         pixels32[i] = u32(buf[i].a) << 24 | u32(buf[i].r) << 16 | u32(buf[i].g) << 8 | u32(buf[i].b)
     }
-
     sdl2.UpdateTexture(texture, nil, &pixels32[0], i32(w * 4))
 
     running := true
@@ -92,11 +127,19 @@ main :: proc() {
             }
         }
 
+        action := read_state_action()
+        if action != current {
+            current = action
+            apply_action_state(buf, w, h, action)
+            for i := 0; i < len(buf); i += 1 {
+                pixels32[i] = u32(buf[i].a) << 24 | u32(buf[i].r) << 16 | u32(buf[i].g) << 8 | u32(buf[i].b)
+            }
+            sdl2.UpdateTexture(texture, nil, &pixels32[0], i32(w * 4))
+        }
+
         sdl2.SetRenderDrawColor(renderer, 0, 0, 0, 0)
         sdl2.RenderClear(renderer)
         sdl2.RenderCopy(renderer, texture, nil, nil)
         sdl2.RenderPresent(renderer)
     }
-
-    fmt.println("exit")
 }
