@@ -3,16 +3,19 @@ package main
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "core:time"
 import "vendor:x11/xlib"
 
-STATE_PATH :: "/tmp/bitpix-state.json"
-BUDDY_PACK :: "/apps/bitpix-buddy/buddy-packs/default"
+STATE_PATH := "/tmp/bitpix-state.json"
 
-w, h := 320, 200
-
-Pixel :: struct {
-    r, g, b, a: u8,
+Read_State :: proc() -> string {
+    data, err := os.read_entire_file_from_path(STATE_PATH, context.allocator)
+    if err != nil || len(data) == 0 do return "idle"
+    for line in strings.split(string(data), "\n") {
+        if strings.has_prefix(line, "action=") {
+            return strings.trim_prefix(line, "action=")
+        }
+    }
+    return "idle"
 }
 
 Draw_Pixel :: proc(buf: []Pixel, x, y, w, h: int, p: Pixel) {
@@ -39,35 +42,27 @@ Checkerboard :: proc(buf: []Pixel, w, h: int) {
     }
 }
 
-Apply_State :: proc(buf: []Pixel, action: string) {
+Apply_State :: proc(buf: []Pixel, w, h: int, action: string) {
     switch action {
     case "idle":
         Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 60, 60, w, h, Pixel{0, 0xcc, 0, 255})
+        Fill_Rect(buf, 20, 20, 80, 80, w, h, Pixel{0, 0xcc, 0, 255})
     case "working":
         Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 120, 60, w, h, Pixel{0, 0x66, 0xff, 255})
+        Fill_Rect(buf, 20, 20, 160, 80, w, h, Pixel{0, 0x66, 0xff, 255})
     case "error":
         Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 160, 60, w, h, Pixel{0xff, 0, 0, 255})
+        Fill_Rect(buf, 20, 20, 240, 80, w, h, Pixel{0xff, 0, 0, 255})
     case "deploying":
         Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 200, 60, w, h, Pixel{0xff, 0xaa, 0, 255})
+        Fill_Rect(buf, 20, 20, 280, 80, w, h, Pixel{0xff, 0xaa, 0, 255})
     case:
         Checkerboard(buf, w, h)
     }
 }
 
-Read_State :: proc() -> string {
-    data, err := os.read_entire_file_from_path(STATE_PATH, context.allocator)
-    if err != nil || len(data) == 0 do return "idle"
-    text := string(data)
-    for line in strings.split(text, "\n") {
-        if strings.has_prefix(line, "action=") {
-            return strings.trim_prefix(line, "action=")
-        }
-    }
-    return "idle"
+Pixel :: struct {
+    r, g, b, a: u8,
 }
 
 main :: proc() {
@@ -87,7 +82,8 @@ main :: proc() {
     white := xlib.WhitePixel(dpy, screen)
     gc := xlib.DefaultGC(dpy, screen)
 
-    win := xlib.CreateSimpleWindow(dpy, root, 100, 100, 320, 200, 2, black, white)
+    bw, bh := 320, 200
+    win := xlib.CreateSimpleWindow(dpy, root, 40, 40, uint(bw), uint(bh), 3, black, white)
     if win == 0 {
         fmt.println("CreateSimpleWindow failed")
         return
@@ -98,12 +94,12 @@ main :: proc() {
     xlib.SelectInput(dpy, win, xlib.EventMask{.ButtonPress, .KeyPress, .Exposure, .StructureNotify})
     xlib.MapRaised(dpy, win)
 
-    buf := make([]Pixel, w * h)
-    Apply_State(buf, action)
+    buf := make([]Pixel, bw * bh)
+    Apply_State(buf, bw, bh, action)
 
-    for y := 0; y < h; y += 1 {
-        for x := 0; x < w; x += 1 {
-            p := buf[y * w + x]
+    for y := 0; y < bh; y += 1 {
+        for x := 0; x < bw; x += 1 {
+            p := buf[y * bw + x]
             xlib.SetForeground(dpy, gc, uint(u32(p.r) << 16 | u32(p.g) << 8 | u32(p.b)))
             xlib.DrawPoint(dpy, win, gc, i32(x), i32(y))
         }
@@ -115,6 +111,9 @@ main :: proc() {
         ev := xlib.XEvent{}
         if xlib.Pending(dpy) > 0 {
             xlib.NextEvent(dpy, &ev)
+            if ev.type == xlib.KeyPress || ev.type == xlib.ClientMessage || ev.type == xlib.DestroyNotify {
+                break
+            }
         }
     }
 }
