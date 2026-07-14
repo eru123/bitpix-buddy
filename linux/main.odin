@@ -1,5 +1,4 @@
 package main
-
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -16,53 +15,6 @@ Read_State :: proc() -> string {
         }
     }
     return "idle"
-}
-
-Draw_Pixel :: proc(buf: []Pixel, x, y, w, h: int, p: Pixel) {
-    if x < 0 || x >= w || y < 0 || y >= h do return
-    i := y * w + x
-    if i >= 0 && i < len(buf) do buf[i] = p
-}
-
-Fill_Rect :: proc(buf: []Pixel, x, y, rw, rh, bw, bh: int, p: Pixel) {
-    for j := y; j < y + rh && j < bh; j += 1 {
-        for i := x; i < x + rw && i < bw; i += 1 {
-            Draw_Pixel(buf, i, j, bw, bh, p)
-        }
-    }
-}
-
-Checkerboard :: proc(buf: []Pixel, w, h: int) {
-    for j := 0; j < h; j += 1 {
-        for i := 0; i < w; i += 1 {
-            if ((i / 8) + (j / 8)) % 2 == 0 {
-                Draw_Pixel(buf, i, j, w, h, Pixel{80, 80, 80, 255})
-            }
-        }
-    }
-}
-
-Apply_State :: proc(buf: []Pixel, w, h: int, action: string) {
-    switch action {
-    case "idle":
-        Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 80, 80, w, h, Pixel{0, 0xcc, 0, 255})
-    case "working":
-        Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 160, 80, w, h, Pixel{0, 0x66, 0xff, 255})
-    case "error":
-        Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 240, 80, w, h, Pixel{0xff, 0, 0, 255})
-    case "deploying":
-        Checkerboard(buf, w, h)
-        Fill_Rect(buf, 20, 20, 280, 80, w, h, Pixel{0xff, 0xaa, 0, 255})
-    case:
-        Checkerboard(buf, w, h)
-    }
-}
-
-Pixel :: struct {
-    r, g, b, a: u8,
 }
 
 main :: proc() {
@@ -82,8 +34,8 @@ main :: proc() {
     white := xlib.WhitePixel(dpy, screen)
     gc := xlib.DefaultGC(dpy, screen)
 
-    bw, bh := 320, 200
-    win := xlib.CreateSimpleWindow(dpy, root, 40, 40, uint(bw), uint(bh), 3, black, white)
+    bw, bh := 160, 160
+    win := xlib.CreateSimpleWindow(dpy, root, 40, 40, u32(bw), u32(bh), 3, black, white)
     if win == 0 {
         fmt.println("CreateSimpleWindow failed")
         return
@@ -91,19 +43,20 @@ main :: proc() {
     defer xlib.DestroyWindow(dpy, win)
 
     xlib.StoreName(dpy, win, "BitPix Buddy")
+
+    attrs := xlib.XSetWindowAttributes{override_redirect = true}
+    xlib.ChangeWindowAttributes(dpy, win, xlib.WindowAttributeMask{.CWOverrideRedirect}, &attrs)
+
     xlib.SelectInput(dpy, win, xlib.EventMask{.ButtonPress, .KeyPress, .Exposure, .StructureNotify})
     xlib.MapRaised(dpy, win)
 
-    buf := make([]Pixel, bw * bh)
-    Apply_State(buf, bw, bh, action)
+    color := uint(0x00cc00)
+    if action == "working" { color = 0x3366ff }
+    if action == "error"   { color = 0xff0033 }
+    if action == "deploying" { color = 0xff7700 }
 
-    for y := 0; y < bh; y += 1 {
-        for x := 0; x < bw; x += 1 {
-            p := buf[y * bw + x]
-            xlib.SetForeground(dpy, gc, uint(u32(p.r) << 16 | u32(p.g) << 8 | u32(p.b)))
-            xlib.DrawPoint(dpy, win, gc, i32(x), i32(y))
-        }
-    }
+    xlib.SetForeground(dpy, gc, color)
+    xlib.FillRectangle(dpy, win, gc, 0, 0, u32(bw), u32(bh))
     xlib.Flush(dpy)
 
     fmt.println("BitPix visible")
@@ -111,7 +64,7 @@ main :: proc() {
         ev := xlib.XEvent{}
         if xlib.Pending(dpy) > 0 {
             xlib.NextEvent(dpy, &ev)
-            if ev.type == xlib.KeyPress || ev.type == xlib.ClientMessage || ev.type == xlib.DestroyNotify {
+            if ev.type == xlib.EventType.KeyPress || ev.type == xlib.EventType.ClientMessage || ev.type == xlib.EventType.DestroyNotify {
                 break
             }
         }
