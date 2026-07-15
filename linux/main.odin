@@ -23,12 +23,12 @@ current_state := "idle"
 frame_idx := 0
 frame_tick := 0
 frames := [FRAME_COUNT]Frame{}
-raw_buf := []u8{}
-last_action_buf := []u8{}
+action_buf := [256]byte{}
+action_len := 0
 
 Read_State :: proc() -> string {
-    if len(last_action_buf) > 0 {
-        return string(last_action_buf)
+    if action_len > 0 {
+        return string(action_buf[:action_len])
     }
     return "idle"
 }
@@ -39,11 +39,13 @@ Cache_State :: proc() {
     if err != nil || len(data) == 0 {
         return
     }
+    action_len = 0
     for line in strings.split(string(data), "\n") {
         if strings.has_prefix(line, "action=") {
             v := strings.trim_prefix(line, "action=")
-            last_action_buf = make([]byte, len(v))
-            copy(last_action_buf, []byte(v))
+            n := min(len(v), len(action_buf)-1)
+            copy(action_buf[:], []byte(v[:n]))
+            action_len = n
             break
         }
     }
@@ -56,8 +58,7 @@ Load_Frames :: proc() {
         fmt.println("load frames failed:", err, "bytes:", len(raw))
         return
     }
-    raw_buf = make([]u8, len(raw))
-    copy(raw_buf, raw)
+    raw_buf := raw
     stride := 768
     for i in 0..<FRAME_COUNT {
         frames[i] = raw_buf[i*stride:(i+1)*stride]
@@ -212,10 +213,14 @@ main :: proc() {
             frame_tick = 0
             show := frame_idx % FRAME_COUNT
             if state == "working" {
-                show = 2
+                show = 2 % FRAME_COUNT
             } else if state == "error" {
-                show = 3
+                show = 3 % FRAME_COUNT
+            } else {
+                show = show % (FRAME_COUNT - (state == "working" || state == "error" ? 3 : 0))
+                if show < 0 { show = 0 }
             }
+            show = show % 2
             Draw_Sprite(dpy, win, gc, frames[show], 0, 0, mul)
             xlib.Flush(dpy)
             frame_idx += 1
