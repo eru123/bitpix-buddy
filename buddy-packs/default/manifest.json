@@ -1,6 +1,7 @@
 {
-  "name": "default",
-  "version": "1.0.0",
-  "default_action": "idle",
-  "actions": ["idle","working","error","deploying"]
+  "id": "default",
+  "name": "Blobby",
+  "base_size": [16, 16],
+  "states": ["idle", "working", "error"],
+  "palette": {"bg": "#00cc00", "outline": "#000000", "body": "#ffcc00", "eye": "#ffffff", "pupil": "#000000", "blush": "#ffaaaa"}
 }
