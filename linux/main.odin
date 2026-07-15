@@ -1,4 +1,5 @@
 package main
+
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -51,13 +52,13 @@ Cache_State :: proc() {
 Load_Frames :: proc() {
     raw, err := os.read_entire_file_from_path(FRAME_PATH, context.allocator)
     defer os.free(raw)
-    if err != nil || len(raw) < SPRITE_W*SPRITE_H*4*FRAME_COUNT {
+    if err != nil || len(raw) < 768*FRAME_COUNT {
         fmt.println("load frames failed:", err, "bytes:", len(raw))
         return
     }
     raw_buf = make([]u8, len(raw))
     copy(raw_buf, raw)
-    stride := SPRITE_W * SPRITE_H * 4
+    stride := 768
     for i in 0..<FRAME_COUNT {
         frames[i] = raw_buf[i*stride:(i+1)*stride]
     }
@@ -95,11 +96,6 @@ Draw_Sprite :: proc(dpy: ^xlib.Display, win: xlib.Window, gc: xlib.GC, f: Frame,
             }
         }
     }
-}
-
-Clear_Frame :: proc(dpy: ^xlib.Display, win: xlib.Window, w: u32, h: u32) {
-    xlib.ClearWindow(dpy, win)
-    xlib.Flush(dpy)
 }
 
 main :: proc() {
@@ -151,16 +147,8 @@ main :: proc() {
     state := Read_State()
     frame_idx = 0
     frame_tick = 0
-    state_tick := 0
     cancel := false
     for !cancel {
-        if state_tick >= 240 {
-            state_tick = 0
-            Cache_State()
-            state = Read_State()
-        }
-        state_tick += 1
-
         ev := xlib.XEvent{}
         if xlib.Pending(dpy) > 0 {
             xlib.NextEvent(dpy, &ev)
@@ -211,16 +199,23 @@ main :: proc() {
             }
         }
 
+        Cache_State()
+        new_state := Read_State()
+        if new_state != state {
+            state = new_state
+            frame_idx = 0
+            frame_tick = 0
+        }
+
         frame_tick += 1
         if frame_tick >= 24 {
             frame_tick = 0
             show := frame_idx % FRAME_COUNT
             if state == "working" {
-                show = 2 % FRAME_COUNT
+                show = 2
             } else if state == "error" {
-                show = 3 % FRAME_COUNT
+                show = 3
             }
-            Clear_Frame(dpy, win, u32(SPRITE_W*mul), u32(SPRITE_H*mul))
             Draw_Sprite(dpy, win, gc, frames[show], 0, 0, mul)
             xlib.Flush(dpy)
             frame_idx += 1
